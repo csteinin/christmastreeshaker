@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>🎄 Weihnachtsbaum-Schüttler</title>
+<style>
+  :root{
+    --jx: 0px;
+    --bg1:#0b1026;
+    --bg2:#1a2755;
+  }
+  *{ box-sizing:border-box; margin:0; padding:0; }
+  html,body{ height:100%; }
+  body{
+    font-family: "Segoe UI", system-ui, -apple-system, sans-serif;
+    background: radial-gradient(1200px 700px at 50% -10%, var(--bg2), var(--bg1));
+    color:#eef2ff;
+    overflow-x:hidden;
+    -webkit-user-select:none; user-select:none;
+  }
+
+  /* Sternenhimmel */
+  body::before{
+    content:"";
+    position:fixed; inset:0;
+    background-image:
+      radial-gradient(1.5px 1.5px at 12% 18%, #fff8 99%, transparent),
+      radial-gradient(1.5px 1.5px at 28% 9%, #fff6 99%, transparent),
+      radial-gradient(2px 2px at 42% 22%, #fff7 99%, transparent),
+      radial-gradient(1.5px 1.5px at 58% 12%, #fff6 99%, transparent),
+      radial-gradient(2px 2px at 71% 24%, #fff8 99%, transparent),
+      radial-gradient(1.5px 1.5px at 84% 10%, #fff6 99%, transparent),
+      radial-gradient(1.5px 1.5px at 92% 30%, #fff7 99%, transparent),
+      radial-gradient(2px 2px at 8% 38%, #fff5 99%, transparent),
+      radial-gradient(1.5px 1.5px at 65% 34%, #fff5 99%, transparent);
+    pointer-events:none;
+  }
+
+  /* Schnee */
+  #snow{
+    position:fixed; inset:0;
+    pointer-events:none;
+    z-index:1;
+  }
+
+  header{
+    position:relative; z-index:3;
+    text-align:center;
+    padding:22px 16px 6px;
+  }
+  h1{
+    font-size:clamp(1.5rem, 4.5vw, 2.4rem);
+    text-shadow:0 0 18px rgba(120,180,255,.45);
+    letter-spacing:.5px;
+  }
+  #hint{
+    margin-top:8px;
+    font-size:clamp(.85rem, 2.5vw, 1.02rem);
+    color:#b9c6ee;
+  }
+  #hint b{ color:#ffd54a; font-weight:600; }
+
+  #fitwrap{
+    position:relative; z-index:2;
+    display:flex;
+    justify-content:center;
+    overflow:hidden;
+  }
+  #fit{ transform-origin:top center; }
+  #scene{
+    position:relative;
+    width:480px; height:560px;
+    touch-action:none;
+    cursor:grab;
+  }
+  #scene.dragging{ cursor:grabbing; }
+
+  /* Boden */
+  #ground{
+    position:absolute; left:-40px; right:-40px; bottom:0;
+    height:46px;
+    background:linear-gradient(#e9f2ff, #c9d9f2);
+    border-radius:50% 50% 0 0 / 100% 100% 0 0;
+    box-shadow:0 -6px 24px rgba(200,220,255,.35);
+  }
+
+  /* Stamm */
+  #trunk{
+    position:absolute;
+    left:222px; top:484px;
+    width:36px; height:40px;
+    background:linear-gradient(90deg,#5b3a1e,#7c5a2e 40%,#4e2f16);
+    border-radius:4px 4px 0 0;
+  }
+
+  /* Baum */
+  #treeBox{
+    position:absolute;
+    left:80px; top:90px;
+    width:320px; height:400px;
+    transform-origin:50% 100%;
+    will-change:transform;
+  }
+  #treeBox svg{ position:absolute; inset:0; width:100%; height:100%; }
+
+  #star{
+    position:absolute;
+    left:50%; top:-4px;
+    transform:translate(-50%,-55%);
+    font-size:44px;
+    line-height:1;
+    color:#ffd54a;
+    text-shadow:0 0 18px #ffd54a, 0 0 42px rgba(255,200,60,.6);
+    pointer-events:none;
+    z-index:2;
+    animation:glow 2.2s ease-in-out infinite;
+  }
+  @keyframes glow{
+    0%,100%{ text-shadow:0 0 14px #ffd54a, 0 0 34px rgba(255,200,60,.5); }
+    50%    { text-shadow:0 0 26px #ffe27a, 0 0 56px rgba(255,210,80,.85); }
+  }
+
+  /* Kugeln */
+  .bauble{
+    position:absolute;
+    width:24px; height:24px;
+    border-radius:50%;
+    left:var(--bx); top:var(--by);
+    background:
+      radial-gradient(circle at 34% 28%, rgba(255,255,255,.95) 0 8%, rgba(255,255,255,0) 42%),
+      radial-gradient(circle at 50% 55%, var(--c), var(--c-dark) 90%);
+    box-shadow:
+      0 0 10px color-mix(in srgb, var(--c) 70%, transparent),
+      inset -3px -5px 8px rgba(0,0,0,.35);
+    transform:translate(calc(-50% + var(--jx)), -50%);
+    transition:left .55s ease, top .55s ease;
+  }
+  .bauble::before{
+    content:"";
+    position:absolute;
+    left:50%; top:-5px;
+    transform:translateX(-50%);
+    width:8px; height:7px;
+    border-radius:2px 2px 0 0;
+    background:linear-gradient(#d9b45c,#9a7a2e);
+  }
+  .bauble.loose{
+    z-index:5;
+    cursor:pointer;
+    animation:wobble 1s ease-in-out infinite;
+  }
+  .bauble.rehanging{ animation:none; cursor:default; }
+  @keyframes wobble{
+    0%,100%{ transform:translate(-50%,-50%) rotate(-6deg); }
+    50%    { transform:translate(-50%,-50%) rotate(6deg); }
+  }
+
+  /* Oberfläche */
+  #panel{
+    position:relative; z-index:3;
+    display:flex;
+    flex-wrap:wrap;
+    gap:10px;
+    justify-content:center;
+    align-items:center;
+    max-width:720px;
+    margin:6px auto 10px;
+    padding:0 14px;
+  }
+  button{
+    font:inherit;
+    font-size:.95rem;
+    padding:10px 16px;
+    border-radius:999px;
+    border:1px solid rgba(255,255,255,.25);
+    background:rgba(255,255,255,.08);
+    color:#eef2ff;
+    cursor:pointer;
+    backdrop-filter:blur(6px);
+    transition:background .15s, transform .1s;
+  }
+  button:hover{ background:rgba(255,255,255,.18); }
+  button:active{ transform:scale(.96); }
+  button.primary{
+    background:linear-gradient(135deg,#c02b2b,#e34040);
+    border-color:rgba(255,255,255,.35);
+    font-weight:600;
+  }
+  button.primary:hover{ background:linear-gradient(135deg,#a82424,#cf3535); }
+
+  #counter{
+    position:relative; z-index:3;
+    text-align:center;
+    color:#b9c6ee;
+    font-size:.95rem;
+    padding-bottom:26px;
+  }
+  #counter b{ color:#ffd54a; }
+  footer{
+    position:relative; z-index:3;
+    text-align:center;
+    color:#7d8bb8;
+    font-size:.8rem;
+    padding-bottom:18px;
+  }
+</style>
+</head>
+<body>
+
+<canvas id="snow"></canvas>
+
+<header>
+  <h1>🎄 Der schüttelbare Weihnachtsbaum 🎁</h1>
+  <p id="hint">Ziehe den Baum mit der Maus oder dem Finger kräftig <b>hin und her</b> — bis die Kugeln purzeln!</p>
+</header>
+
+<div id="fitwrap"><div id="fit">
+  <div id="scene">
+    <div id="ground"></div>
+    <div id="trunk"></div>
+    <div id="treeBox">
+      <svg viewBox="0 0 320 400" aria-hidden="true">
+        <defs>
+          <linearGradient id="g1" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#35a05c"/>
+            <stop offset="1" stop-color="#1c5c34"/>
+          </linearGradient>
+          <linearGradient id="g2" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#2f9455"/>
+            <stop offset="1" stop-color="#175429"/>
+          </linearGradient>
+          <linearGradient id="g3" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0" stop-color="#28844c"/>
+            <stop offset="1" stop-color="#124a23"/>
+          </linearGradient>
+        </defs>
+        <polygon points="160,4 296,152 24,152" fill="url(#g1)"/>
+        <polygon points="160,66 312,266 8,266" fill="url(#g2)"/>
+        <polygon points="160,146 318,396 2,396" fill="url(#g3)"/>
+        <path d="M40,392 Q110,330 280,388" fill="none" stroke="#f2c14e" stroke-width="5" stroke-dasharray="10 9" opacity=".85" stroke-linecap="round"/>
+        <path d="M52,262 Q160,208 268,258" fill="none" stroke="#f2c14e" stroke-width="5" stroke-dasharray="10 9" opacity=".85" stroke-linecap="round"/>
+        <path d="M64,148 Q160,104 256,144" fill="none" stroke="#f2c14e" stroke-width="5" stroke-dasharray="10 9" opacity=".85" stroke-linecap="round"/>
+        <ellipse cx="60" cy="150" rx="34" ry="8" fill="#ffffff" opacity=".28"/>
+        <ellipse cx="262" cy="258" rx="44" ry="9" fill="#ffffff" opacity=".25"/>
+        <ellipse cx="256" cy="390" rx="52" ry="10" fill="#ffffff" opacity=".3"/>
+      </svg>
+      <div id="star">★</div>
+    </div>
+  </div>
+</div></div>
+
+<div id="panel">
+  <button id="nudge" class="primary">⚡ Kräftig stupsen</button>
+  <button id="rehang">🪄 Alle Kugeln zurückhängen</button>
+  <button id="mute">🔔 Sound an</button>
+</div>
+
+<div id="counter">Kugeln am Baum: <b id="onTree">12</b>/12 &nbsp;·&nbsp; Heruntergefallen insgesamt: <b id="fallen">0</b></div>
+
+<footer>Weihnachten wünscht dein Browser 🎅 — Leise klicken zum Zurückhängen heruntergefallener Kugeln.</footer>
+
+<script>
+(() => {
+  "use strict";
+
+  const SCENE_W = 480, SCENE_H = 560;
+  const GROUND_Y = 520;
+  const TREE_W = 320, TREE_H = 400, TREE_L = 80, TREE_T = 90;
+  const PIVOT = { x: SCENE_W / 2, y: TREE_T + TREE_H };
+  const SPRING_K = 14, DAMPING = 1.8, DETACH_V = 12, GRAVITY = 950, R = 12;
+
+  const ORNAMENTS = [
+    [50, 13, "#e34040"], [38, 22, "#f0b429"], [62, 24, "#4a7de0"],
+    [30, 36, "#9b59d0"], [68, 38, "#35c4c8"], [47, 40, "#e34040"],
+    [56, 52, "#f0b429"], [34, 55, "#4a7de0"], [62, 64, "#e34040"],
+    [26, 68, "#35c4c8"], [48, 74, "#9b59d0"], [68, 78, "#f0b429"],
+  ];
+
+  const scene   = document.getElementById("scene");
+  const treeBox = document.getElementById("treeBox");
+  const fit     = document.getElementById("fit");
+  const fitwrap = document.getElementById("fitwrap");
+  const onTreeEl  = document.getElementById("onTree");
+  const fallenEl  = document.getElementById("fallen");
+  const hintEl    = document.getElementById("hint");
+
+  const treeEls = ORNAMENTS.map(([hx, hy, color]) => {
+    const el = document.createElement("div");
+    el.className = "bauble";
+    el.style.setProperty("--bx", hx + "%");
+    el.style.setProperty("--by", hy + "%");
+    el.style.setProperty("--c", color);
+    el.style.setProperty("--c-dark", shade(color, -35));
+    treeBox.appendChild(el);
+    return el;
+  });
+
+  const loose = [];
+  let sway = 0, swayVel = 0;
+  let fallenTotal = 0;
+
+  function shade(hex, pct) {
+    const n = parseInt(hex.slice(1), 16);
+    const f = 1 + pct / 100;
+    const r = Math.min(255, Math.max(0, Math.round((n >> 16) * f)));
+    const g = Math.min(255, Math.max(0, Math.round((n >> 8 & 255) * f)));
+    const b = Math.min(255, Math.max(0, Math.round((n & 255) * f)));
+    return `rgb(${r},${g},${b})`;
+  }
+
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+
+  function updateCounter() {
+    onTreeEl.textContent = ORNAMENTS.length - loose.filter(o => o.state !== "rehanging").length;
+    fallenEl.textContent = fallenTotal;
+  }
+
+  function detach(idx) {
+    const [hx, hy] = ORNAMENTS[idx];
+    const px = TREE_L + hx / 100 * TREE_W;
+    const py = TREE_T + hy / 100 * TREE_H;
+    const a = sway * Math.PI / 180;
+    const dx = px - PIVOT.x, dy = py - PIVOT.y;
+    const ca = Math.cos(a), sa = Math.sin(a);
+    const x = PIVOT.x + dx * ca - dy * sa;
+    const y = PIVOT.y + dx * sa + dy * ca;
+
+    treeEls[idx].style.display = "none";
+    const el = document.createElement("div");
+    el.className = "bauble loose";
+    el.style.setProperty("--c", shade(getComputedStyle(treeEls[idx]).getPropertyValue("--c").trim() || "#e34040", 0));
+    el.style.setProperty("--c-dark", getComputedStyle(treeEls[idx]).getPropertyValue("--c-dark").trim());
+    el.style.left = x + "px";
+    el.style.top = y + "px";
+    scene.appendChild(el);
+
+    loose.push({
+      idx, el,
+      x, y,
+      vx: swayVel * 2.2 + (Math.random() * 80 - 40),
+      vy: -Math.random() * 60,
+      rot: 0,
+      vr: Math.random() * 500 - 250,
+      state: "falling",
+    });
+    fallenTotal++;
+    ding();
+    loose[loose.length - 1].el.addEventListener("click", () => rehang(loose[loose.length - 1]));
+    updateCounter();
+  }
+
+  function detachRandom() {
+    const attached = [];
+    loose.forEach(l => attached.push(l.idx));
+    const candidates = ORNAMENTS.map((_, i) => i).filter(i =>
+      treeEls[i].style.display !== "none" && !attached.includes(i));
+    if (candidates.length) detach(candidates[Math.floor(Math.random() * candidates.length)]);
+  }
+
+  function rehang(obj) {
+    if (!obj || obj.state === "rehanging") return;
+    obj.state = "rehanging";
+    obj.el.classList.remove("loose");
+    obj.el.classList.add("rehanging");
+    const [hx, hy] = ORNAMENTS[obj.idx];
+    obj.el.style.left = (TREE_L + hx / 100 * TREE_W) + "px";
+    obj.el.style.top = (TREE_T + hy / 100 * TREE_H) + "px";
+    setTimeout(() => {
+      obj.el.remove();
+      treeEls[obj.idx].style.display = "";
+      const i = loose.indexOf(obj);
+      if (i >= 0) loose.splice(i, 1);
+      dingRehang();
+      updateCounter();
+    }, 580);
+  }
+
+  function updateLoose(dt) {
+    for (const o of loose) {
+      if (o.state !== "falling") continue;
+      o.vy += GRAVITY * dt;
+      o.x += o.vx * dt;
+      o.y += o.vy * dt;
+      o.rot += o.vr * dt;
+      const floor = GROUND_Y - R;
+      if (o.y > floor) {
+        o.y = floor;
+        if (Math.abs(o.vy) > 140) thud();
+        o.vy = -o.vy * 0.45;
+        o.vx *= 0.72;
+        o.vr *= 0.6;
+        if (Math.abs(o.vy) < 45) { o.vy = 0; o.state = "resting"; }
+      }
+      if (o.state === "falling" && Math.abs(o.vx) < 4 && o.y >= floor - 0.5 && Math.abs(o.vy) < 30) {
+        o.state = "resting";
+      }
+      o.el.style.left = o.x + "px";
+      o.el.style.top = o.y + "px";
+      o.el.style.transform = `translate(-50%,-50%) rotate(${o.rot}deg)`;
+    }
+  }
+
+  /* ------- Sound (Web Audio, Offline-Erzeugung) ------- */
+  let audioCtx = null, soundOn = true, lastThud = 0;
+  function ac() {
+    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    if (audioCtx.state === "suspended") audioCtx.resume();
+    return audioCtx;
+  }
+  function tone(freq, freq2, dur, gain, type) {
+    if (!soundOn) return;
+    try {
+      const ctx = ac(), t = ctx.currentTime;
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = type;
+      o.frequency.setValueAtTime(freq, t);
+      if (freq2) o.frequency.exponentialRampToValueAtTime(freq2, t + dur);
+      g.gain.setValueAtTime(gain, t);
+      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
+      o.connect(g).connect(ctx.destination);
+      o.start(t); o.stop(t + dur + 0.05);
+    } catch (e) { /* Audio nicht verfügbar */ }
+  }
+  function ding() {
+    tone(880 + Math.random() * 500, null, 0.5, 0.07, "triangle");
+    tone(1760 + Math.random() * 500, null, 0.3, 0.03, "sine");
+  }
+  function dingRehang() { tone(660, 990, 0.25, 0.05, "triangle"); }
+  function thud() {
+    const now = performance.now();
+    if (now - lastThud < 90) return;
+    lastThud = now;
+    tone(130, 55, 0.14, 0.12, "sine");
+  }
+
+  /* ------- Steuerung ------- */
+  let dragging = false, lastX = 0;
+  scene.addEventListener("pointerdown", e => {
+    dragging = true;
+    lastX = e.clientX;
+    scene.classList.add("dragging");
+    scene.setPointerCapture(e.pointerId);
+  });
+  scene.addEventListener("pointermove", e => {
+    if (!dragging) return;
+    const dx = e.clientX - lastX;
+    lastX = e.clientX;
+    swayVel = clamp(swayVel + dx * 0.9, -48, 48);
+  });
+  const endDrag = () => { dragging = false; scene.classList.remove("dragging"); };
+  scene.addEventListener("pointerup", endDrag);
+  scene.addEventListener("pointercancel", endDrag);
+
+  window.addEventListener("keydown", e => {
+    if (e.key === "ArrowLeft") swayVel = clamp(swayVel - 22, -48, 48);
+    if (e.key === "ArrowRight") swayVel = clamp(swayVel + 22, -48, 48);
+  });
+
+  let lastAcc = 0;
+  window.addEventListener("devicemotion", e => {
+    const a = e.accelerationIncludingGravity;
+    if (!a || a.x == null) return;
+    const mag = Math.abs(a.x) + Math.abs(a.y);
+    if (mag - lastAcc > 6) swayVel = clamp(swayVel + (a.x > 0 ? 1 : -1) * (mag - lastAcc) * 1.4, -52, 52);
+    lastAcc = mag;
+  });
+
+  const nudgeBtn = document.getElementById("nudge");
+  nudgeBtn.addEventListener("click", () => {
+    swayVel = clamp(swayVel + (Math.random() < 0.5 ? -1 : 1) * (34 + Math.random() * 16), -52, 52);
+  });
+
+  document.getElementById("rehang").addEventListener("click", () => {
+    loose.slice().forEach((o, i) => setTimeout(() => rehang(o), i * 130));
+  });
+
+  const muteBtn = document.getElementById("mute");
+  muteBtn.addEventListener("click", () => {
+    soundOn = !soundOn;
+    muteBtn.textContent = soundOn ? "🔔 Sound an" : "🔕 Sound aus";
+  });
+
+  /* ------- Skalierung auf schmale Screens ------- */
+  function fitScene() {
+    const s = Math.min(1, (window.innerWidth - 16) / SCENE_W);
+    fit.style.transform = `scale(${s})`;
+    fit.style.width = SCENE_W + "px";
+    fitwrap.style.height = SCENE_H * s + "px";
+  }
+  window.addEventListener("resize", fitScene);
+  fitScene();
+
+  /* ------- Schnee ------- */
+  const snowCanvas = document.getElementById("snow");
+  const sctx = snowCanvas.getContext("2d");
+  let flakes = [];
+  function resizeSnow() {
+    snowCanvas.width = window.innerWidth;
+    snowCanvas.height = window.innerHeight;
+  }
+  function makeFlakes() {
+    flakes = Array.from({ length: 120 }, () => ({
+      x: Math.random() * window.innerWidth,
+      y: Math.random() * window.innerHeight,
+      r: Math.random() * 2.4 + 0.8,
+      vy: Math.random() * 40 + 15,
+      phase: Math.random() * Math.PI * 2,
+    }));
+  }
+  window.addEventListener("resize", () => { resizeSnow(); makeFlakes(); });
+  resizeSnow(); makeFlakes();
+
+  /* ------- Haupt-Loop ------- */
+  let last = performance.now();
+  function frame(t) {
+    const dt = Math.min(0.032, (t - last) / 1000);
+    last = t;
+
+    swayVel += (-SPRING_K * sway - DAMPING * swayVel) * dt;
+    sway += swayVel * dt;
+    treeBox.style.transform = `rotate(${sway}deg)`;
+
+    const speed = Math.abs(swayVel);
+    if (speed > DETACH_V) {
+      const p = (speed - DETACH_V) * 0.05 * dt;
+      if (Math.random() < p) detachRandom();
+    }
+
+    updateLoose(dt);
+
+    const jx = clamp(-swayVel * 0.15, -7, 7);
+    treeBox.style.setProperty("--jx", jx + "px");
+
+    sctx.clearRect(0, 0, snowCanvas.width, snowCanvas.height);
+    sctx.fillStyle = "rgba(255,255,255,.85)";
+    for (const f of flakes) {
+      f.phase += dt * 1.5;
+      f.y += f.vy * dt;
+      f.x += Math.sin(f.phase) * 22 * dt;
+      if (f.y > window.innerHeight + 4) { f.y = -4; f.x = Math.random() * window.innerWidth; }
+      sctx.beginPath();
+      sctx.arc(f.x, f.y, f.r, 0, Math.PI * 2);
+      sctx.fill();
+    }
+
+    requestAnimationFrame(frame);
+  }
+  requestAnimationFrame(frame);
+})();
+</script>
+</body>
+</html>
