@@ -197,6 +197,39 @@
     padding-bottom:26px;
   }
   #counter b{ color:#ffd54a; }
+
+  #result{
+    position:absolute;
+    left:50%; top:45%;
+    transform:translate(-50%,-50%);
+    z-index:8;
+    pointer-events:none;
+    text-align:center;
+    font-size:2rem;
+    font-weight:600;
+    color:#ffd54a;
+    text-shadow:0 0 14px rgba(255,200,60,.8), 0 2px 8px rgba(0,0,0,.6);
+    background:rgba(11,16,38,.72);
+    border:1px solid rgba(255,255,255,.25);
+    border-radius:16px;
+    padding:18px 28px;
+    backdrop-filter:blur(6px);
+    display:none;
+    white-space:nowrap;
+  }
+  #result small{
+    display:block;
+    margin-top:4px;
+    font-size:.8rem;
+    font-weight:400;
+    color:#b9c6ee;
+    text-shadow:none;
+  }
+  #result.show{ display:block; animation:pop .4s ease; }
+  @keyframes pop{
+    0%   { transform:translate(-50%,-50%) scale(.5); opacity:0; }
+    100% { transform:translate(-50%,-50%) scale(1); opacity:1; }
+  }
   footer{
     position:relative; z-index:3;
     text-align:center;
@@ -246,6 +279,7 @@
       </svg>
       <div id="star">★</div>
     </div>
+    <div id="result">🏆 <span id="resultTime">0,00 s</span><small>Alle Kugeln sind gefallen!</small></div>
   </div>
 </div></div>
 
@@ -295,6 +329,28 @@
   const loose = [];
   let sway = 0, swayVel = 0;
   let fallenTotal = 0;
+
+  /* ------- Runden-Timer ------- */
+  const resultEl = document.getElementById("result");
+  const resultTimeEl = document.getElementById("resultTime");
+  let runStart = null, roundActive = false;
+
+  function startRun() {
+    if (roundActive || resultEl.classList.contains("show")) return;
+    runStart = performance.now();
+    roundActive = true;
+  }
+  function endRun() {
+    roundActive = false;
+    const secs = (performance.now() - runStart) / 1000;
+    resultTimeEl.textContent = secs.toFixed(2).replace(".", ",") + " s";
+    resultEl.classList.add("show");
+  }
+  function resetRound() {
+    roundActive = false;
+    runStart = null;
+    resultEl.classList.remove("show");
+  }
 
   function shade(hex, pct) {
     const n = parseInt(hex.slice(1), 16);
@@ -355,6 +411,7 @@
 
   function rehang(obj) {
     if (!obj || obj.state === "rehanging") return;
+    resetRound();
     obj.state = "rehanging";
     obj.el.classList.remove("loose");
     obj.el.classList.add("rehanging");
@@ -392,6 +449,7 @@
       o.el.style.top = o.y + "px";
       o.el.style.transform = `translate(-50%,-50%) rotate(${o.rot}deg)`;
     }
+    if (roundActive && loose.length === ORNAMENTS.length && loose.every(o => o.state === "resting")) endRun();
   }
 
   /* ------- Steuerung ------- */
@@ -406,6 +464,7 @@
     if (!dragging) return;
     const dx = e.clientX - lastX;
     lastX = e.clientX;
+    if (dx) startRun();
     swayVel = clamp(swayVel + dx * 0.9, -48, 48);
   });
   const endDrag = () => { dragging = false; scene.classList.remove("dragging"); };
@@ -413,8 +472,8 @@
   scene.addEventListener("pointercancel", endDrag);
 
   window.addEventListener("keydown", e => {
-    if (e.key === "ArrowLeft") swayVel = clamp(swayVel - 22, -48, 48);
-    if (e.key === "ArrowRight") swayVel = clamp(swayVel + 22, -48, 48);
+    if (e.key === "ArrowLeft") { startRun(); swayVel = clamp(swayVel - 22, -48, 48); }
+    if (e.key === "ArrowRight") { startRun(); swayVel = clamp(swayVel + 22, -48, 48); }
   });
 
   /* ------- Bewegungssensor (Schütteln) ------- */
@@ -425,7 +484,7 @@
     const mag = Math.abs(a.x) + Math.abs(a.y) + Math.abs(a.z || 0);
     if (lastAcc !== null) {
       const delta = mag - lastAcc;
-      if (Math.abs(delta) > 6) swayVel = clamp(swayVel + (a.x > 0 ? 1 : -1) * delta * 1.4, -52, 52);
+      if (Math.abs(delta) > 6) { startRun(); swayVel = clamp(swayVel + (a.x > 0 ? 1 : -1) * delta * 1.4, -52, 52); }
     }
     lastAcc = mag;
   }
@@ -449,6 +508,7 @@
 
   const nudgeBtn = document.getElementById("nudge");
   nudgeBtn.addEventListener("click", () => {
+    startRun();
     swayVel = clamp(swayVel + (Math.random() < 0.5 ? -1 : 1) * (34 + Math.random() * 16), -52, 52);
   });
 
