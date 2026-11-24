@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>🎄 Weihnachtsbaum-Schüttler</title>
+<title>🎄 Wackel-Weihnachtsbaum</title>
 <style>
   :root{
     --jx: 0px;
@@ -211,7 +211,7 @@
 <canvas id="snow"></canvas>
 
 <header>
-  <h1>🎄 Der schüttelbare Weihnachtsbaum 🎁</h1>
+  <h1>🎄 Wackel-Weihnachtsbaum</h1>
 </header>
 
 <div id="fitwrap"><div id="fit">
@@ -252,7 +252,6 @@
 <div id="panel">
   <button id="nudge" class="primary">⚡ Kräftig stupsen</button>
   <button id="rehang">🪄 Alle Kugeln zurückhängen</button>
-  <button id="mute">🔔 Sound an</button>
 </div>
 
 <div id="counter">Kugeln am Baum: <b id="onTree">12</b>/12 &nbsp;·&nbsp; Heruntergefallen insgesamt: <b id="fallen">0</b></div>
@@ -342,7 +341,6 @@
       state: "falling",
     });
     fallenTotal++;
-    ding();
     loose[loose.length - 1].el.addEventListener("click", () => rehang(loose[loose.length - 1]));
     updateCounter();
   }
@@ -368,7 +366,6 @@
       treeEls[obj.idx].style.display = "";
       const i = loose.indexOf(obj);
       if (i >= 0) loose.splice(i, 1);
-      dingRehang();
       updateCounter();
     }, 580);
   }
@@ -383,7 +380,6 @@
       const floor = GROUND_Y - R;
       if (o.y > floor) {
         o.y = floor;
-        if (Math.abs(o.vy) > 140) thud();
         o.vy = -o.vy * 0.45;
         o.vx *= 0.72;
         o.vr *= 0.6;
@@ -396,39 +392,6 @@
       o.el.style.top = o.y + "px";
       o.el.style.transform = `translate(-50%,-50%) rotate(${o.rot}deg)`;
     }
-  }
-
-  /* ------- Sound (Web Audio, Offline-Erzeugung) ------- */
-  let audioCtx = null, soundOn = true, lastThud = 0;
-  function ac() {
-    if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
-    if (audioCtx.state === "suspended") audioCtx.resume();
-    return audioCtx;
-  }
-  function tone(freq, freq2, dur, gain, type) {
-    if (!soundOn) return;
-    try {
-      const ctx = ac(), t = ctx.currentTime;
-      const o = ctx.createOscillator(), g = ctx.createGain();
-      o.type = type;
-      o.frequency.setValueAtTime(freq, t);
-      if (freq2) o.frequency.exponentialRampToValueAtTime(freq2, t + dur);
-      g.gain.setValueAtTime(gain, t);
-      g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
-      o.connect(g).connect(ctx.destination);
-      o.start(t); o.stop(t + dur + 0.05);
-    } catch (e) { /* Audio nicht verfügbar */ }
-  }
-  function ding() {
-    tone(880 + Math.random() * 500, null, 0.5, 0.07, "triangle");
-    tone(1760 + Math.random() * 500, null, 0.3, 0.03, "sine");
-  }
-  function dingRehang() { tone(660, 990, 0.25, 0.05, "triangle"); }
-  function thud() {
-    const now = performance.now();
-    if (now - lastThud < 90) return;
-    lastThud = now;
-    tone(130, 55, 0.14, 0.12, "sine");
   }
 
   /* ------- Steuerung ------- */
@@ -454,14 +417,35 @@
     if (e.key === "ArrowRight") swayVel = clamp(swayVel + 22, -48, 48);
   });
 
-  let lastAcc = 0;
-  window.addEventListener("devicemotion", e => {
+  /* ------- Bewegungssensor (Schütteln) ------- */
+  let lastAcc = null;
+  function handleMotion(e) {
     const a = e.accelerationIncludingGravity;
     if (!a || a.x == null) return;
-    const mag = Math.abs(a.x) + Math.abs(a.y);
-    if (mag - lastAcc > 6) swayVel = clamp(swayVel + (a.x > 0 ? 1 : -1) * (mag - lastAcc) * 1.4, -52, 52);
+    const mag = Math.abs(a.x) + Math.abs(a.y) + Math.abs(a.z || 0);
+    if (lastAcc !== null) {
+      const delta = mag - lastAcc;
+      if (Math.abs(delta) > 6) swayVel = clamp(swayVel + (a.x > 0 ? 1 : -1) * delta * 1.4, -52, 52);
+    }
     lastAcc = mag;
-  });
+  }
+
+  const motionNeedsPermission =
+    typeof DeviceMotionEvent !== "undefined" &&
+    typeof DeviceMotionEvent.requestPermission === "function";
+
+  if (motionNeedsPermission) {
+    /* iOS: Erlaubnis darf nur innerhalb einer Nutzereingabe angefragt werden */
+    window.addEventListener("pointerdown", () => {
+      DeviceMotionEvent.requestPermission()
+        .then(state => {
+          if (state === "granted") window.addEventListener("devicemotion", handleMotion);
+        })
+        .catch(() => {});
+    }, { once: true });
+  } else if ("DeviceMotionEvent" in window) {
+    window.addEventListener("devicemotion", handleMotion);
+  }
 
   const nudgeBtn = document.getElementById("nudge");
   nudgeBtn.addEventListener("click", () => {
@@ -470,12 +454,6 @@
 
   document.getElementById("rehang").addEventListener("click", () => {
     loose.slice().forEach((o, i) => setTimeout(() => rehang(o), i * 130));
-  });
-
-  const muteBtn = document.getElementById("mute");
-  muteBtn.addEventListener("click", () => {
-    soundOn = !soundOn;
-    muteBtn.textContent = soundOn ? "🔔 Sound an" : "🔕 Sound aus";
   });
 
   /* ------- Skalierung auf schmale Screens ------- */
